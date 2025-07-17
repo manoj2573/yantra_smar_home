@@ -7,7 +7,6 @@ import '../models/device_model.dart';
 import '../models/timer_model.dart';
 import '../services/supabase_service.dart';
 import '../services/mqtt_service.dart';
-import '../../app/constants/mqtt_topics.dart';
 
 class DeviceController extends GetxController {
   static DeviceController get to => Get.find();

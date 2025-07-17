@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:yantra_smart_home_automation/shared/dialogs/add_device_dialog.dart';
-import '../../../app/theme/app_theme.dart';
 import '../../../app/theme/app_dimensions.dart';
 import '../../../core/widgets/custom_text_field.dart';
 import '../../../core/widgets/custom_button.dart';

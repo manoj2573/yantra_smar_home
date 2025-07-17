@@ -22,6 +22,9 @@ class MockDataService extends GetxService {
   ];
 
   // Mock device data
+  // lib/core/services/mock_data_services.dart - Fix the mockDevices data
+  // Replace the mockDevices list with this corrected version:
+
   static final List<Map<String, dynamic>> mockDevices = [
     {
       'device_id': 'MOCK_LIGHT_001',
@@ -29,7 +32,7 @@ class MockDataService extends GetxService {
       'type': 'Dimmable light',
       'room_name': 'Living Room',
       'state': true,
-      'slider_value': 75.0,
+      'slider_value': 75, // Changed from 75.0 to 75 (integer)
       'color': '#FFFFFF',
       'registration_id': 'REG_MOCK_001',
       'icon_path': 'assets/chandlier.png',
@@ -41,7 +44,7 @@ class MockDataService extends GetxService {
       'type': 'Fan',
       'room_name': 'Bedroom',
       'state': false,
-      'slider_value': 0.0,
+      'slider_value': 0, // Changed from 0.0 to 0 (integer)
       'color': '#FFFFFF',
       'registration_id': 'REG_MOCK_002',
       'icon_path': 'assets/fan.png',
@@ -53,7 +56,7 @@ class MockDataService extends GetxService {
       'type': 'RGB',
       'room_name': 'Living Room',
       'state': true,
-      'slider_value': 100.0,
+      'slider_value': 100, // Changed from 100.0 to 100 (integer)
       'color': '#FF5722',
       'registration_id': 'REG_MOCK_003',
       'icon_path': 'assets/led-strip.png',
@@ -65,7 +68,7 @@ class MockDataService extends GetxService {
       'type': 'On/Off',
       'room_name': 'Kitchen',
       'state': false,
-      'slider_value': 0.0,
+      'slider_value': 0, // Changed from 0.0 to 0 (integer)
       'color': '#FFFFFF',
       'registration_id': 'REG_MOCK_004',
       'icon_path': 'assets/light-bulb.png',
@@ -77,7 +80,7 @@ class MockDataService extends GetxService {
       'type': 'Curtain',
       'room_name': 'Living Room',
       'state': false,
-      'slider_value': 25.0,
+      'slider_value': 25, // Changed from 25.0 to 25 (integer)
       'color': '#FFFFFF',
       'registration_id': 'REG_MOCK_005',
       'icon_path': 'assets/blinds.png',
@@ -89,7 +92,7 @@ class MockDataService extends GetxService {
       'type': 'RGB',
       'room_name': 'Bedroom',
       'state': true,
-      'slider_value': 60.0,
+      'slider_value': 60, // Changed from 60.0 to 60 (integer)
       'color': '#9C27B0',
       'registration_id': 'REG_MOCK_006',
       'icon_path': 'assets/rgb.png',
@@ -101,7 +104,7 @@ class MockDataService extends GetxService {
       'type': 'Dimmable light',
       'room_name': 'Kitchen',
       'state': false,
-      'slider_value': 0.0,
+      'slider_value': 0, // Changed from 0.0 to 0 (integer)
       'color': '#FFFFFF',
       'registration_id': 'REG_MOCK_007',
       'icon_path': 'assets/led-strip.png',
@@ -113,7 +116,7 @@ class MockDataService extends GetxService {
       'type': 'Fan',
       'room_name': 'Office',
       'state': true,
-      'slider_value': 40.0,
+      'slider_value': 40, // Changed from 40.0 to 40 (integer)
       'color': '#FFFFFF',
       'registration_id': 'REG_MOCK_008',
       'icon_path': 'assets/table_fan.png',
@@ -125,7 +128,7 @@ class MockDataService extends GetxService {
       'type': 'On/Off',
       'room_name': 'Bathroom',
       'state': false,
-      'slider_value': 0.0,
+      'slider_value': 0, // Changed from 0.0 to 0 (integer)
       'color': '#FFFFFF',
       'registration_id': 'REG_MOCK_009',
       'icon_path': 'assets/cooling-fan.png',
@@ -137,14 +140,13 @@ class MockDataService extends GetxService {
       'type': 'IR Hub',
       'room_name': 'Living Room',
       'state': true,
-      'slider_value': 0.0,
+      'slider_value': 0, // Changed from 0.0 to 0 (integer)
       'color': '#FFFFFF',
       'registration_id': 'REG_MOCK_010',
       'icon_path': 'assets/power-socket.png',
       'is_online': true,
     },
   ];
-
   Future<void> initializeMockData() async {
     try {
       _logger.i('Initializing mock data...');
@@ -199,7 +201,8 @@ class MockDataService extends GetxService {
           type: DeviceType.fromString(deviceData['type'] as String),
           roomName: deviceData['room_name'] as String,
           initialState: deviceData['state'] as bool,
-          initialSliderValue: (deviceData['slider_value'] as num).toDouble(),
+          // Fix: Convert integer to double when creating the model
+          initialSliderValue: (deviceData['slider_value'] as int).toDouble(),
           initialColor: deviceData['color'] as String,
           registrationId: deviceData['registration_id'] as String,
           iconPath: deviceData['icon_path'] as String,
@@ -327,7 +330,7 @@ class MockDataService extends GetxService {
       roomName: roomName,
       registrationId: 'REG_$deviceId',
       initialState: initialState,
-      initialSliderValue: initialSliderValue,
+      initialSliderValue: initialSliderValue, // This is already a double
       initialColor: initialColor,
       initialIsOnline: true,
     );

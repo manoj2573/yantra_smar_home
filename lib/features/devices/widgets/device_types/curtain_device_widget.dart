@@ -422,7 +422,7 @@ class CurtainDeviceWidget extends StatelessWidget {
                         });
                       },
                     ),
-                    Text('${selectedSeconds} seconds'),
+                    Text('$selectedSeconds seconds'),
                   ],
                 );
               },

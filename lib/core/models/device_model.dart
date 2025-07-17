@@ -78,6 +78,7 @@ class DeviceModel extends Equatable {
       roomId: data['room_id'] as String?,
       roomName: data['room_name'] as String?,
       initialState: data['state'] as bool? ?? false,
+      // Convert integer to double for slider value
       initialSliderValue: (data['slider_value'] as num?)?.toDouble() ?? 0.0,
       initialColor: data['color'] as String? ?? '#FFFFFF',
       registrationId: data['registration_id'] as String,
@@ -93,7 +94,7 @@ class DeviceModel extends Equatable {
     );
   }
 
-  // Convert to Supabase data
+  // Convert to Supabase data - FIXED VERSION
   Map<String, dynamic> toSupabase() {
     return {
       'device_id': deviceId,
@@ -101,7 +102,8 @@ class DeviceModel extends Equatable {
       'type': type.displayName,
       'room_id': roomId,
       'state': state.value,
-      'slider_value': sliderValue?.value ?? 0,
+      // Ensure slider_value is always an integer
+      'slider_value': (sliderValue?.value ?? 0.0).round(),
       'color': color.value,
       'registration_id': registrationId,
       'icon_path': iconPath,
@@ -112,7 +114,7 @@ class DeviceModel extends Equatable {
     };
   }
 
-  // Convert to MQTT payload
+  // Convert to MQTT payload - also fix this
   Map<String, dynamic> toMqttPayload() {
     final payload = {
       'deviceId': deviceId,
@@ -124,7 +126,8 @@ class DeviceModel extends Equatable {
     };
 
     if (sliderValue != null) {
-      payload['sliderValue'] = sliderValue!.value.toInt();
+      // Send as integer for MQTT as well
+      payload['sliderValue'] = (sliderValue!.value).round();
     }
 
     if (type == DeviceType.rgb) {
