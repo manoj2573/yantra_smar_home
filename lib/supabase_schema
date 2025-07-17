@@ -1,0 +1,269 @@
+-- Enable necessary extensions
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- Enable Row Level Security
+ALTER DATABASE postgres SET row_security = on;
+
+-- Rooms table
+CREATE TABLE public.rooms (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+    name TEXT NOT NULL,
+    icon_path TEXT DEFAULT 'assets/room.png',
+    color TEXT DEFAULT '#FF9800',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Devices table  
+CREATE TABLE public.devices (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+    device_id TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL CHECK (type IN ('On/Off', 'Dimmable light', 'RGB', 'Fan', 'Curtain', 'IR Hub')),
+    room_id UUID REFERENCES public.rooms(id) ON DELETE SET NULL,
+    state BOOLEAN DEFAULT false,
+    slider_value INTEGER DEFAULT 0 CHECK (slider_value >= 0 AND slider_value <= 100),
+    color TEXT DEFAULT '#FFFFFF',
+    registration_id TEXT NOT NULL,
+    icon_path TEXT DEFAULT 'assets/light-bulb.png',
+    is_online BOOLEAN DEFAULT false,
+    last_seen TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    settings JSONB DEFAULT '{}',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Scenes table
+CREATE TABLE public.scenes (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+    name TEXT NOT NULL,
+    icon_path TEXT DEFAULT 'assets/movie.png',
+    devices JSONB NOT NULL DEFAULT '[]',
+    is_active BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Schedules table
+CREATE TABLE public.schedules (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+    device_id UUID REFERENCES public.devices(id) ON DELETE CASCADE NOT NULL,
+    name TEXT NOT NULL,
+    days INTEGER[] NOT NULL CHECK (array_length(days, 1) > 0),
+    on_time TIME,
+    off_time TIME,
+    action JSONB DEFAULT '{}',
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Timers table (NEW FEATURE)
+CREATE TABLE public.timers (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+    device_id UUID REFERENCES public.devices(id) ON DELETE CASCADE NOT NULL,
+    name TEXT NOT NULL,
+    action JSONB NOT NULL,
+    duration_minutes INTEGER NOT NULL CHECK (duration_minutes > 0),
+    started_at TIMESTAMP WITH TIME ZONE,
+    ends_at TIMESTAMP WITH TIME ZONE,
+    is_active BOOLEAN DEFAULT false,
+    is_completed BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- IR Hubs table (NEW FEATURE)
+CREATE TABLE public.ir_hubs (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+    device_id TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    room_id UUID REFERENCES public.rooms(id) ON DELETE SET NULL,
+    registration_id TEXT NOT NULL,
+    is_online BOOLEAN DEFAULT false,
+    last_seen TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- IR Devices table (TV, AC, Fan, etc.)
+CREATE TABLE public.ir_devices (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    ir_hub_id UUID REFERENCES public.ir_hubs(id) ON DELETE CASCADE NOT NULL,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL CHECK (type IN ('tv', 'ac', 'fan', 'chandelier', 'speaker', 'custom')),
+    icon_path TEXT,
+    layout_config JSONB DEFAULT '{}',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- IR Buttons table
+CREATE TABLE public.ir_buttons (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    ir_device_id UUID REFERENCES public.ir_devices(id) ON DELETE CASCADE NOT NULL,
+    name TEXT NOT NULL,
+    icon_name TEXT,
+    position_x INTEGER DEFAULT 0,
+    position_y INTEGER DEFAULT 0,
+    width INTEGER DEFAULT 1,
+    height INTEGER DEFAULT 1,
+    ir_code TEXT,
+    button_type TEXT DEFAULT 'action' CHECK (button_type IN ('action', 'toggle', 'value')),
+    is_learned BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- User preferences table
+CREATE TABLE public.user_preferences (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL UNIQUE,
+    theme TEXT DEFAULT 'orange' CHECK (theme IN ('orange', 'blue', 'green', 'purple', 'dark')),
+    notifications_enabled BOOLEAN DEFAULT true,
+    auto_discover_devices BOOLEAN DEFAULT true,
+    mqtt_settings JSONB DEFAULT '{}',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Notifications table
+CREATE TABLE public.notifications (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+    title TEXT NOT NULL,
+    message TEXT NOT NULL,
+    type TEXT DEFAULT 'info' CHECK (type IN ('info', 'success', 'warning', 'error')),
+    is_read BOOLEAN DEFAULT false,
+    action_data JSONB DEFAULT '{}',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create indexes for better performance
+CREATE INDEX idx_devices_user_id ON public.devices(user_id);
+CREATE INDEX idx_devices_device_id ON public.devices(device_id);
+CREATE INDEX idx_devices_registration_id ON public.devices(registration_id);
+CREATE INDEX idx_devices_room_id ON public.devices(room_id);
+CREATE INDEX idx_devices_is_online ON public.devices(is_online);
+CREATE INDEX idx_rooms_user_id ON public.rooms(user_id);
+CREATE INDEX idx_scenes_user_id ON public.scenes(user_id);
+CREATE INDEX idx_schedules_user_id ON public.schedules(user_id);
+CREATE INDEX idx_schedules_device_id ON public.schedules(device_id);
+CREATE INDEX idx_schedules_is_active ON public.schedules(is_active);
+CREATE INDEX idx_timers_user_id ON public.timers(user_id);
+CREATE INDEX idx_timers_device_id ON public.timers(device_id);
+CREATE INDEX idx_timers_is_active ON public.timers(is_active);
+CREATE INDEX idx_timers_ends_at ON public.timers(ends_at);
+CREATE INDEX idx_ir_hubs_user_id ON public.ir_hubs(user_id);
+CREATE INDEX idx_ir_devices_ir_hub_id ON public.ir_devices(ir_hub_id);
+CREATE INDEX idx_ir_buttons_ir_device_id ON public.ir_buttons(ir_device_id);
+CREATE INDEX idx_notifications_user_id_is_read ON public.notifications(user_id, is_read);
+
+-- Row Level Security Policies
+ALTER TABLE public.rooms ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.devices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.scenes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.schedules ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.timers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ir_hubs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ir_devices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ir_buttons ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_preferences ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+
+-- Policies for rooms
+CREATE POLICY "Users can manage their own rooms" ON public.rooms
+    FOR ALL USING (auth.uid() = user_id);
+
+-- Policies for devices
+CREATE POLICY "Users can manage their own devices" ON public.devices
+    FOR ALL USING (auth.uid() = user_id);
+
+-- Policies for scenes
+CREATE POLICY "Users can manage their own scenes" ON public.scenes
+    FOR ALL USING (auth.uid() = user_id);
+
+-- Policies for schedules
+CREATE POLICY "Users can manage their own schedules" ON public.schedules
+    FOR ALL USING (auth.uid() = user_id);
+
+-- Policies for timers
+CREATE POLICY "Users can manage their own timers" ON public.timers
+    FOR ALL USING (auth.uid() = user_id);
+
+-- Policies for IR hubs
+CREATE POLICY "Users can manage their own IR hubs" ON public.ir_hubs
+    FOR ALL USING (auth.uid() = user_id);
+
+-- Policies for IR devices
+CREATE POLICY "Users can manage IR devices through their hubs" ON public.ir_devices
+    FOR ALL USING (
+        EXISTS (
+            SELECT 1 FROM public.ir_hubs 
+            WHERE ir_hubs.id = ir_devices.ir_hub_id 
+            AND ir_hubs.user_id = auth.uid()
+        )
+    );
+
+-- Policies for IR buttons
+CREATE POLICY "Users can manage IR buttons through their devices" ON public.ir_buttons
+    FOR ALL USING (
+        EXISTS (
+            SELECT 1 FROM public.ir_devices 
+            JOIN public.ir_hubs ON ir_hubs.id = ir_devices.ir_hub_id
+            WHERE ir_devices.id = ir_buttons.ir_device_id 
+            AND ir_hubs.user_id = auth.uid()
+        )
+    );
+
+-- Policies for user preferences
+CREATE POLICY "Users can manage their own preferences" ON public.user_preferences
+    FOR ALL USING (auth.uid() = user_id);
+
+-- Policies for notifications
+CREATE POLICY "Users can manage their own notifications" ON public.notifications
+    FOR ALL USING (auth.uid() = user_id);
+
+-- Functions for automatic timestamp updates
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Triggers for updated_at
+CREATE TRIGGER update_rooms_updated_at BEFORE UPDATE ON public.rooms FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_devices_updated_at BEFORE UPDATE ON public.devices FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_scenes_updated_at BEFORE UPDATE ON public.scenes FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_schedules_updated_at BEFORE UPDATE ON public.schedules FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_timers_updated_at BEFORE UPDATE ON public.timers FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_ir_hubs_updated_at BEFORE UPDATE ON public.ir_hubs FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_ir_devices_updated_at BEFORE UPDATE ON public.ir_devices FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_ir_buttons_updated_at BEFORE UPDATE ON public.ir_buttons FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_user_preferences_updated_at BEFORE UPDATE ON public.user_preferences FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Insert default room for new users
+CREATE OR REPLACE FUNCTION create_default_room()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO public.rooms (user_id, name, icon_path, color)
+    VALUES (NEW.id, 'Living Room', 'assets/room.png', '#FF9800');
+    
+    INSERT INTO public.user_preferences (user_id)
+    VALUES (NEW.id);
+    
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+CREATE TRIGGER on_auth_user_created
+    AFTER INSERT ON auth.users
+    FOR EACH ROW EXECUTE FUNCTION create_default_room();
