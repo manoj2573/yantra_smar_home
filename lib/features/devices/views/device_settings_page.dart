@@ -105,7 +105,7 @@ class _DeviceSettingsPageState extends State<DeviceSettingsPage> {
                       _buildRoomSettingsCard(),
                       const SizedBox(height: 20),
 
-                      // Icon Selection Card
+                      // Icon Selection Card - ENHANCED
                       _buildIconSelectionCard(),
                       const SizedBox(height: 20),
 
@@ -141,7 +141,27 @@ class _DeviceSettingsPageState extends State<DeviceSettingsPage> {
           children: [
             Row(
               children: [
-                Image.asset(selectedIcon, width: 48, height: 48),
+                // Device Icon - FIXED: Removed color property
+                Container(
+                  width: 60,
+                  height: 60,
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppTheme.colors.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Image.asset(
+                    selectedIcon,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Icon(
+                        Icons.device_unknown,
+                        color: AppTheme.colors.primary,
+                        size: 32,
+                      );
+                    },
+                  ),
+                ),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Column(
@@ -149,12 +169,19 @@ class _DeviceSettingsPageState extends State<DeviceSettingsPage> {
                     children: [
                       Text(
                         device.name,
-                        style: Theme.of(context).textTheme.titleLarge,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
+                      const SizedBox(height: 4),
                       Text(
                         device.type.displayName,
-                        style: Theme.of(context).textTheme.bodyMedium,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppTheme.colors.primary,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
+                      const SizedBox(height: 8),
                       Row(
                         children: [
                           Icon(
@@ -176,6 +203,7 @@ class _DeviceSettingsPageState extends State<DeviceSettingsPage> {
                                       ? Colors.green
                                       : Colors.red,
                               fontSize: 12,
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
                         ],
@@ -183,10 +211,12 @@ class _DeviceSettingsPageState extends State<DeviceSettingsPage> {
                     ],
                   ),
                 ),
-                Switch.adaptive(
-                  value: device.state.value,
-                  onChanged:
-                      (value) => deviceController.toggleDeviceState(device),
+                Obx(
+                  () => Switch.adaptive(
+                    value: device.state.value,
+                    onChanged:
+                        (value) => deviceController.toggleDeviceState(device),
+                  ),
                 ),
               ],
             ),
@@ -205,7 +235,9 @@ class _DeviceSettingsPageState extends State<DeviceSettingsPage> {
           children: [
             Text(
               'Basic Settings',
-              style: Theme.of(context).textTheme.titleMedium,
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
             CustomTextField(
@@ -234,7 +266,9 @@ class _DeviceSettingsPageState extends State<DeviceSettingsPage> {
           children: [
             Text(
               'Room Assignment',
-              style: Theme.of(context).textTheme.titleMedium,
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
 
@@ -333,7 +367,12 @@ class _DeviceSettingsPageState extends State<DeviceSettingsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Device Icon', style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              'Device Icon',
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 16),
             GridView.builder(
               shrinkWrap: true,
@@ -359,10 +398,12 @@ class _DeviceSettingsPageState extends State<DeviceSettingsPage> {
                     decoration: BoxDecoration(
                       border: Border.all(
                         color:
-                            isSelected ? AppTheme.colors.primary : Colors.grey,
-                        width: isSelected ? 2 : 1,
+                            isSelected
+                                ? AppTheme.colors.primary
+                                : Colors.grey.withOpacity(0.3),
+                        width: isSelected ? 3 : 1,
                       ),
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(12),
                       color:
                           isSelected
                               ? AppTheme.colors.primary.withOpacity(0.1)
@@ -370,7 +411,19 @@ class _DeviceSettingsPageState extends State<DeviceSettingsPage> {
                     ),
                     child: Padding(
                       padding: const EdgeInsets.all(12),
-                      child: Image.asset(iconPath, fit: BoxFit.contain),
+                      child: Image.asset(
+                        iconPath,
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Icon(
+                            Icons.device_unknown,
+                            color:
+                                isSelected
+                                    ? AppTheme.colors.primary
+                                    : Colors.grey,
+                          );
+                        },
+                      ),
                     ),
                   ),
                 );
@@ -391,7 +444,9 @@ class _DeviceSettingsPageState extends State<DeviceSettingsPage> {
           children: [
             Text(
               'Advanced Settings',
-              style: Theme.of(context).textTheme.titleMedium,
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
 

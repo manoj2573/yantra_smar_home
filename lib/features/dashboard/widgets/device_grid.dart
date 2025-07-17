@@ -30,8 +30,8 @@ class DeviceGrid extends StatelessWidget {
           () => GestureDetector(
             onTap: () => deviceController.toggleDeviceState(device),
             onLongPress: () {
-              // Navigate to device control page
-              // Get.toNamed('/device-control', arguments: device);
+              // Navigate to device control page - FIXED
+              Get.toNamed('/device-control', arguments: device);
             },
             child: Container(
               decoration: BoxDecoration(
@@ -51,12 +51,20 @@ class DeviceGrid extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Device icon
+                  // Device icon - FIXED: Removed color property
                   Image.asset(
                     device.iconPath,
                     width: 32,
                     height: 32,
-                    color: device.state.value ? Colors.white : Colors.white70,
+                    // Removed color property to show original icon colors
+                    errorBuilder: (context, error, stackTrace) {
+                      return Icon(
+                        Icons.device_unknown,
+                        size: 32,
+                        color:
+                            device.state.value ? Colors.white : Colors.white70,
+                      );
+                    },
                   ),
                   const SizedBox(height: 8),
                   // Device name
@@ -74,6 +82,7 @@ class DeviceGrid extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
+                  const SizedBox(height: 2),
                   // Device status
                   Text(
                     device.stateText,

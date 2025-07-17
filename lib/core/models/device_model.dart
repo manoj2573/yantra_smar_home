@@ -1,4 +1,4 @@
-// lib/core/models/device_model.dart
+// lib/core/models/device_model.dart - UPDATED with better icon handling
 import 'package:equatable/equatable.dart';
 import 'package:get/get.dart';
 
@@ -272,7 +272,12 @@ extension DeviceTypeExtension on DeviceType {
           'assets/power-socket.png',
         ];
       case DeviceType.rgb:
-        return ['assets/rgb.png', 'assets/led-strip.png', 'assets/light.png'];
+        return [
+          'assets/rgb.png',
+          'assets/led-strip.png',
+          'assets/light.png',
+          'assets/chandlier.png',
+        ];
       case DeviceType.fan:
         return [
           'assets/fan.png',

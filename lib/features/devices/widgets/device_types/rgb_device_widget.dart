@@ -1,6 +1,7 @@
 // lib/features/devices/widgets/device_types/rgb_device_widget.dart
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import '../../../../app/theme/app_theme.dart';
 import '../../../../core/models/device_model.dart';
 import '../../../../core/controllers/device_controller.dart';
@@ -19,8 +20,8 @@ class RgbDeviceWidget extends StatelessWidget {
         // Color Display
         Obx(
           () => Container(
-            width: 200,
-            height: 200,
+            width: 150,
+            height: 150,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               gradient: RadialGradient(
@@ -51,34 +52,33 @@ class RgbDeviceWidget extends StatelessWidget {
               children: [
                 Icon(
                   Icons.color_lens,
-                  size: 60,
+                  size: 40,
                   color: device.state.value ? Colors.white : Colors.grey[400],
                 ),
                 const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.3),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    device.color.value.toUpperCase(),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
+                // Container(
+                //   padding: const EdgeInsets.symmetric(
+                //     horizontal: 12,
+                //     vertical: 6,
+                //   ),
+                //   decoration: BoxDecoration(
+                //     color: Colors.black.withOpacity(0.3),
+                //     borderRadius: BorderRadius.circular(12),
+                //   ),
+                //   // child: Text(
+                //   //   device.color.value.toUpperCase(),
+                //   //   style: const TextStyle(
+                //   //     color: Colors.white,
+                //   //     fontWeight: FontWeight.w600,
+                //   //     fontSize: 12,
+                //   //   ),
+                //   // ),
+                // ),
               ],
             ),
           ),
         ),
-
-        const SizedBox(height: 32),
+        const SizedBox(height: 12),
 
         // Brightness Slider
         if (device.supportsSlider) ...[
@@ -119,13 +119,13 @@ class RgbDeviceWidget extends StatelessWidget {
           'Color Presets',
           style: Theme.of(
             context,
-          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+          ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 8),
 
         Wrap(
-          spacing: 12,
-          runSpacing: 12,
+          spacing: 8,
+          runSpacing: 8,
           children:
               _colorPresets
                   .map(
@@ -140,17 +140,49 @@ class RgbDeviceWidget extends StatelessWidget {
 
         const SizedBox(height: 24),
 
-        // Custom Color Picker Button
+        // Advanced Color Picker Button - ENHANCED
         ElevatedButton.icon(
           onPressed:
               device.isOnline.value
-                  ? () => _showColorPicker(context, controller)
+                  ? () => _showAdvancedColorPicker(context, controller)
                   : null,
           icon: const Icon(Icons.palette),
-          label: const Text('Custom Color'),
+          label: const Text('Advanced Color Picker'),
           style: ElevatedButton.styleFrom(
             padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
           ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // Quick Color Temperature Buttons
+        Text(
+          'Color Temperature',
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 12),
+
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            _buildTemperatureButton(
+              'Warm',
+              const Color(0xFFFFB366),
+              controller,
+            ),
+            _buildTemperatureButton(
+              'Cool',
+              const Color(0xFFB3D9FF),
+              controller,
+            ),
+            _buildTemperatureButton(
+              'Daylight',
+              const Color(0xFFFFFFFF),
+              controller,
+            ),
+          ],
         ),
 
         const SizedBox(height: 16),
@@ -225,7 +257,45 @@ class RgbDeviceWidget extends StatelessWidget {
     );
   }
 
-  void _showColorPicker(BuildContext context, DeviceController controller) {
+  Widget _buildTemperatureButton(
+    String label,
+    Color color,
+    DeviceController controller,
+  ) {
+    final isSelected =
+        _colorToHex(color).toLowerCase() == device.color.value.toLowerCase();
+
+    return GestureDetector(
+      onTap:
+          device.isOnline.value
+              ? () => controller.setDeviceColor(device, _colorToHex(color))
+              : null,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        decoration: BoxDecoration(
+          color: isSelected ? color : color.withOpacity(0.2),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected ? Colors.white : color.withOpacity(0.5),
+            width: 2,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? Colors.black : color,
+            fontWeight: FontWeight.w600,
+            fontSize: 12,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showAdvancedColorPicker(
+    BuildContext context,
+    DeviceController controller,
+  ) {
     Color selectedColor = _hexToColor(device.color.value);
 
     Get.dialog(
@@ -235,29 +305,66 @@ class RgbDeviceWidget extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Simple color grid
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 6,
-                  crossAxisSpacing: 8,
-                  mainAxisSpacing: 8,
+              // Color Wheel Picker
+              ColorPicker(
+                pickerColor: selectedColor,
+                onColorChanged: (color) => selectedColor = color,
+                colorPickerWidth: 300,
+                pickerAreaHeightPercent: 0.7,
+                enableAlpha: false,
+                displayThumbColor: true,
+                paletteType: PaletteType.hueWheel,
+                labelTypes: const [],
+                pickerAreaBorderRadius: BorderRadius.circular(20),
+              ),
+
+              const SizedBox(height: 20),
+
+              // RGB/HSV Values Display
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                itemCount: _extendedColors.length,
-                itemBuilder: (context, index) {
-                  final color = _extendedColors[index];
-                  return GestureDetector(
-                    onTap: () => selectedColor = color,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: color,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.grey.withOpacity(0.3)),
-                      ),
+                child: Column(
+                  children: [
+                    Text(
+                      'Hex: ${_colorToHex(selectedColor)}',
+                      style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
-                  );
-                },
+                    const SizedBox(height: 4),
+                    Text(
+                      'RGB: ${selectedColor.red}, ${selectedColor.green}, ${selectedColor.blue}',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // Preview
+              Container(
+                width: double.infinity,
+                height: 50,
+                decoration: BoxDecoration(
+                  color: selectedColor,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.grey.withOpacity(0.3)),
+                ),
+                child: Center(
+                  child: Text(
+                    'Preview',
+                    style: TextStyle(
+                      color:
+                          selectedColor.computeLuminance() > 0.5
+                              ? Colors.black
+                              : Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
               ),
             ],
           ),
@@ -268,6 +375,15 @@ class RgbDeviceWidget extends StatelessWidget {
             onPressed: () {
               controller.setDeviceColor(device, _colorToHex(selectedColor));
               Get.back();
+              Get.snackbar(
+                'Color Changed',
+                'Color set to ${_colorToHex(selectedColor)}',
+                backgroundColor: selectedColor.withOpacity(0.8),
+                colorText:
+                    selectedColor.computeLuminance() > 0.5
+                        ? Colors.black
+                        : Colors.white,
+              );
             },
             child: const Text('Apply'),
           ),
@@ -297,53 +413,5 @@ class RgbDeviceWidget extends StatelessWidget {
     {'color': Colors.orange, 'name': 'Orange'},
     {'color': Colors.pink, 'name': 'Pink'},
     {'color': Colors.cyan, 'name': 'Cyan'},
-  ];
-
-  static final List<Color> _extendedColors = [
-    Colors.red.shade300,
-    Colors.red.shade500,
-    Colors.red.shade700,
-    Colors.pink.shade300,
-    Colors.pink.shade500,
-    Colors.pink.shade700,
-    Colors.purple.shade300,
-    Colors.purple.shade500,
-    Colors.purple.shade700,
-    Colors.deepPurple.shade300,
-    Colors.deepPurple.shade500,
-    Colors.deepPurple.shade700,
-    Colors.indigo.shade300,
-    Colors.indigo.shade500,
-    Colors.indigo.shade700,
-    Colors.blue.shade300,
-    Colors.blue.shade500,
-    Colors.blue.shade700,
-    Colors.lightBlue.shade300,
-    Colors.lightBlue.shade500,
-    Colors.lightBlue.shade700,
-    Colors.cyan.shade300,
-    Colors.cyan.shade500,
-    Colors.cyan.shade700,
-    Colors.teal.shade300,
-    Colors.teal.shade500,
-    Colors.teal.shade700,
-    Colors.green.shade300,
-    Colors.green.shade500,
-    Colors.green.shade700,
-    Colors.lightGreen.shade300,
-    Colors.lightGreen.shade500,
-    Colors.lightGreen.shade700,
-    Colors.lime.shade300,
-    Colors.lime.shade500,
-    Colors.lime.shade700,
-    Colors.yellow.shade300,
-    Colors.yellow.shade500,
-    Colors.yellow.shade700,
-    Colors.amber.shade300,
-    Colors.amber.shade500,
-    Colors.amber.shade700,
-    Colors.orange.shade300,
-    Colors.orange.shade500,
-    Colors.orange.shade700,
   ];
 }
