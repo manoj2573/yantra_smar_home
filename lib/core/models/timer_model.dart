@@ -2,9 +2,25 @@
 import 'package:equatable/equatable.dart';
 import 'package:get/get.dart';
 
-enum TimerStatus { inactive, active, paused, completed, expired }
+enum TimerStatus { inactive, active, paused, expired, completed }
 
-enum TimerActionType { turnOn, turnOff, setBrightness, setColor, toggle }
+enum TimerActionType {
+  turnOn('Turn On'),
+  turnOff('Turn Off'),
+  toggle('Toggle'),
+  setBrightness('Set Brightness'),
+  setColor('Set Color');
+
+  const TimerActionType(this.displayText);
+  final String displayText;
+
+  static TimerActionType fromString(String value) {
+    return TimerActionType.values.firstWhere(
+      (type) => type.name == value,
+      orElse: () => TimerActionType.toggle,
+    );
+  }
+}
 
 class TimerAction extends Equatable {
   final TimerActionType type;
@@ -14,11 +30,8 @@ class TimerAction extends Equatable {
 
   factory TimerAction.fromJson(Map<String, dynamic> json) {
     return TimerAction(
-      type: TimerActionType.values.firstWhere(
-        (e) => e.name == json['type'],
-        orElse: () => TimerActionType.toggle,
-      ),
-      parameters: json['parameters'] as Map<String, dynamic>? ?? {},
+      type: TimerActionType.fromString(json['type'] as String),
+      parameters: (json['parameters'] as Map<String, dynamic>?) ?? {},
     );
   }
 
@@ -32,14 +45,14 @@ class TimerAction extends Equatable {
         return 'Turn On';
       case TimerActionType.turnOff:
         return 'Turn Off';
+      case TimerActionType.toggle:
+        return 'Toggle';
       case TimerActionType.setBrightness:
-        final brightness = parameters['brightness'] as int? ?? 0;
+        final brightness = parameters['brightness'] as int? ?? 50;
         return 'Set Brightness to $brightness%';
       case TimerActionType.setColor:
         final color = parameters['color'] as String? ?? '#FFFFFF';
         return 'Set Color to $color';
-      case TimerActionType.toggle:
-        return 'Toggle State';
     }
   }
 
@@ -57,12 +70,9 @@ class TimerModel extends Equatable {
   final DateTime? endsAt;
   final RxBool isActive;
   final RxBool isCompleted;
+  final RxInt remainingSeconds;
   final DateTime createdAt;
   final DateTime updatedAt;
-
-  // Reactive properties for countdown
-  final RxInt remainingSeconds;
-  final RxDouble progress;
 
   TimerModel({
     required this.id,
@@ -74,34 +84,41 @@ class TimerModel extends Equatable {
     this.endsAt,
     bool? initialIsActive,
     bool? initialIsCompleted,
-    DateTime? createdAt,
-    DateTime? updatedAt,
+    int? initialRemainingSeconds,
+    required this.createdAt,
+    required this.updatedAt,
   }) : isActive = RxBool(initialIsActive ?? false),
        isCompleted = RxBool(initialIsCompleted ?? false),
-       remainingSeconds = RxInt(0),
-       progress = RxDouble(0.0),
-       createdAt = createdAt ?? DateTime.now(),
-       updatedAt = updatedAt ?? DateTime.now() {
-    updateCountdown(); // Call the public method
-  }
+       remainingSeconds = RxInt(
+         initialRemainingSeconds ?? durationMinutes * 60,
+       );
 
   factory TimerModel.fromSupabase(Map<String, dynamic> data) {
+    final startedAt =
+        data['started_at'] != null
+            ? DateTime.parse(data['started_at'] as String)
+            : null;
+    final endsAt =
+        data['ends_at'] != null
+            ? DateTime.parse(data['ends_at'] as String)
+            : null;
+
+    int remainingSeconds = 0;
+    if (startedAt != null && endsAt != null && endsAt.isAfter(DateTime.now())) {
+      remainingSeconds = endsAt.difference(DateTime.now()).inSeconds;
+    }
+
     return TimerModel(
       id: data['id'] as String,
       deviceId: data['device_id'] as String,
       name: data['name'] as String,
       action: TimerAction.fromJson(data['action'] as Map<String, dynamic>),
       durationMinutes: data['duration_minutes'] as int,
-      startedAt:
-          data['started_at'] != null
-              ? DateTime.parse(data['started_at'] as String)
-              : null,
-      endsAt:
-          data['ends_at'] != null
-              ? DateTime.parse(data['ends_at'] as String)
-              : null,
+      startedAt: startedAt,
+      endsAt: endsAt,
       initialIsActive: data['is_active'] as bool? ?? false,
       initialIsCompleted: data['is_completed'] as bool? ?? false,
+      initialRemainingSeconds: remainingSeconds,
       createdAt: DateTime.parse(data['created_at'] as String),
       updatedAt: DateTime.parse(data['updated_at'] as String),
     );
@@ -124,139 +141,84 @@ class TimerModel extends Equatable {
   // Timer control methods
   TimerModel start() {
     final now = DateTime.now();
-    final newEndsAt = now.add(Duration(minutes: durationMinutes));
+    final endTime = now.add(Duration(minutes: durationMinutes));
 
     return copyWith(
       startedAt: now,
-      endsAt: newEndsAt,
+      endsAt: endTime,
       isActive: true,
       isCompleted: false,
+      remainingSeconds: durationMinutes * 60,
     );
-  }
-
-  TimerModel pause() {
-    if (!isActive.value || isCompleted.value) return this;
-
-    return copyWith(
-      isActive: false,
-      // Keep startedAt and endsAt for resume functionality
-    );
-  }
-
-  TimerModel resume() {
-    if (isActive.value || isCompleted.value) return this;
-    if (startedAt == null) return start();
-
-    final now = DateTime.now();
-    final elapsed = now.difference(startedAt!);
-    final remaining = Duration(minutes: durationMinutes) - elapsed;
-
-    if (remaining.isNegative) {
-      return copyWith(isCompleted: true, isActive: false);
-    }
-
-    return copyWith(endsAt: now.add(remaining), isActive: true);
   }
 
   TimerModel stop() {
     return copyWith(
-      isActive: false,
-      isCompleted: false,
       startedAt: null,
       endsAt: null,
+      isActive: false,
+      remainingSeconds: durationMinutes * 60,
     );
   }
 
   TimerModel complete() {
-    return copyWith(isActive: false, isCompleted: true);
+    return copyWith(isActive: false, isCompleted: true, remainingSeconds: 0);
   }
 
-  // Helper methods
+  void updateCountdown() {
+    if (endsAt != null && isActive.value) {
+      final remaining = endsAt!.difference(DateTime.now()).inSeconds;
+      remainingSeconds.value = remaining > 0 ? remaining : 0;
+    }
+  }
+
+  // Status getters
   TimerStatus get status {
     if (isCompleted.value) return TimerStatus.completed;
-    if (isActive.value) {
-      if (endsAt != null && DateTime.now().isAfter(endsAt!)) {
-        return TimerStatus.expired;
-      }
-      return TimerStatus.active;
+    if (!isActive.value) return TimerStatus.inactive;
+    if (endsAt != null && DateTime.now().isAfter(endsAt!)) {
+      return TimerStatus.expired;
     }
-    if (startedAt != null && !isCompleted.value) {
-      return TimerStatus.paused;
-    }
-    return TimerStatus.inactive;
-  }
-
-  Duration get totalDuration => Duration(minutes: durationMinutes);
-
-  Duration get remainingDuration {
-    if (endsAt == null || !isActive.value) return Duration.zero;
-    final remaining = endsAt!.difference(DateTime.now());
-    return remaining.isNegative ? Duration.zero : remaining;
-  }
-
-  Duration get elapsedDuration {
-    if (startedAt == null) return Duration.zero;
-    if (endsAt == null) return Duration.zero;
-
-    final totalDuration = Duration(minutes: durationMinutes);
-    final remaining = remainingDuration;
-    return totalDuration - remaining;
-  }
-
-  double get progressPercentage {
-    if (startedAt == null || endsAt == null) return 0.0;
-
-    final total = totalDuration.inSeconds;
-    final elapsed = elapsedDuration.inSeconds;
-
-    if (total == 0) return 0.0;
-    return (elapsed / total).clamp(0.0, 1.0);
-  }
-
-  String get remainingTimeText {
-    final remaining = remainingDuration;
-    final hours = remaining.inHours;
-    final minutes = remaining.inMinutes % 60;
-    final seconds = remaining.inSeconds % 60;
-
-    if (hours > 0) {
-      return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
-    } else {
-      return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
-    }
+    return TimerStatus.active;
   }
 
   String get statusText {
     switch (status) {
       case TimerStatus.inactive:
-        return 'Ready';
+        return 'Not Started';
       case TimerStatus.active:
         return 'Running';
       case TimerStatus.paused:
         return 'Paused';
-      case TimerStatus.completed:
-        return 'Completed';
       case TimerStatus.expired:
         return 'Expired';
+      case TimerStatus.completed:
+        return 'Completed';
     }
   }
 
-  bool get canStart => status == TimerStatus.inactive;
-  bool get canPause => status == TimerStatus.active;
-  bool get canResume => status == TimerStatus.paused;
-  bool get canStop =>
-      status == TimerStatus.active || status == TimerStatus.paused;
-
-  // Update countdown (called periodically)
-  void updateCountdown() {
-    if (status == TimerStatus.active) {
-      final remaining = remainingDuration;
-      remainingSeconds.value = remaining.inSeconds;
-      progress.value = progressPercentage;
-    }
+  String get remainingTimeText {
+    final minutes = remainingSeconds.value ~/ 60;
+    final seconds = remainingSeconds.value % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
   }
 
-  // Copy with method
+  String get durationText {
+    final hours = durationMinutes ~/ 60;
+    final minutes = durationMinutes % 60;
+    if (hours > 0) {
+      return '${hours}h ${minutes}m';
+    }
+    return '${minutes}m';
+  }
+
+  double get progressPercentage {
+    if (durationMinutes == 0) return 0.0;
+    final totalSeconds = durationMinutes * 60;
+    final elapsed = totalSeconds - remainingSeconds.value;
+    return (elapsed / totalSeconds).clamp(0.0, 1.0);
+  }
+
   TimerModel copyWith({
     String? id,
     String? deviceId,
@@ -267,6 +229,8 @@ class TimerModel extends Equatable {
     DateTime? endsAt,
     bool? isActive,
     bool? isCompleted,
+    int? remainingSeconds,
+    DateTime? createdAt,
     DateTime? updatedAt,
   }) {
     return TimerModel(
@@ -279,7 +243,8 @@ class TimerModel extends Equatable {
       endsAt: endsAt ?? this.endsAt,
       initialIsActive: isActive ?? this.isActive.value,
       initialIsCompleted: isCompleted ?? this.isCompleted.value,
-      createdAt: createdAt,
+      initialRemainingSeconds: remainingSeconds ?? this.remainingSeconds.value,
+      createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? DateTime.now(),
     );
   }
@@ -295,38 +260,41 @@ class TimerModel extends Equatable {
     endsAt,
     isActive.value,
     isCompleted.value,
+    remainingSeconds.value,
     createdAt,
     updatedAt,
   ];
 }
 
-// Predefined timer durations
-class TimerDurations {
-  static const List<int> quickDurations = [1, 5, 10, 15, 30, 60]; // minutes
+// Predefined timer templates
+class TimerTemplates {
+  static const List<Map<String, dynamic>> templates = [
+    {
+      'name': 'Quick 5 min',
+      'duration': 5,
+      'action': {'type': 'turnOff', 'parameters': {}},
+    },
+    {
+      'name': 'Quick 15 min',
+      'duration': 15,
+      'action': {'type': 'turnOff', 'parameters': {}},
+    },
+    {
+      'name': 'Quick 30 min',
+      'duration': 30,
+      'action': {'type': 'turnOff', 'parameters': {}},
+    },
+    {
+      'name': '1 Hour',
+      'duration': 60,
+      'action': {'type': 'turnOff', 'parameters': {}},
+    },
+    {
+      'name': 'Sleep Timer (2h)',
+      'duration': 120,
+      'action': {'type': 'turnOff', 'parameters': {}},
+    },
+  ];
 
-  static const Map<String, int> namedDurations = {
-    '1 minute': 1,
-    '5 minutes': 5,
-    '10 minutes': 10,
-    '15 minutes': 15,
-    '30 minutes': 30,
-    '1 hour': 60,
-    '2 hours': 120,
-    '4 hours': 240,
-    '8 hours': 480,
-  };
-
-  static String formatDuration(int minutes) {
-    if (minutes < 60) {
-      return '${minutes}m';
-    } else {
-      final hours = minutes ~/ 60;
-      final remainingMinutes = minutes % 60;
-      if (remainingMinutes == 0) {
-        return '${hours}h';
-      } else {
-        return '${hours}h ${remainingMinutes}m';
-      }
-    }
-  }
+  static List<String> get quickDurations => ['5', '15', '30', '60', '120'];
 }

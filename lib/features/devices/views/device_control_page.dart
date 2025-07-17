@@ -1,6 +1,7 @@
 // lib/features/devices/views/device_control_page.dart
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:yantra_smart_home_automation/features/scenes/views/scenes_page.dart';
 import '../../../app/theme/app_theme.dart';
 import '../../../app/theme/app_dimensions.dart';
 import '../../../shared/widgets/custom_app_bar.dart';
@@ -40,7 +41,7 @@ class DeviceControlPage extends StatelessWidget {
               children: [
                 // Device Status Header
                 _buildDeviceHeader(device),
-                const SizedBox(height: 24),
+                const SizedBox(height: 4),
 
                 // Device Control Widget
                 Expanded(
@@ -296,7 +297,7 @@ class DeviceControlPage extends StatelessWidget {
                   child: _buildQuickActionButton(
                     icon: Icons.movie,
                     label: 'Add to Scene',
-                    onTap: () => _showSceneDialog(device),
+                    onTap: () => Get.to(() => ScenesPage()),
                   ),
                 ),
               ],
