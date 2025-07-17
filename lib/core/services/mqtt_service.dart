@@ -91,12 +91,11 @@ class MqttService extends GetxService {
       final clientId = await _generateUniqueClientId();
       _client = MqttServerClient.withPort(_broker, clientId, _port);
 
-      _client.logging(on: false); // Disable verbose logging
+      _client.logging(on: false);
       _client.keepAlivePeriod = _keepAlivePeriod;
-      _client.autoReconnect = false; // We'll handle reconnection manually
+      _client.autoReconnect = false;
       _client.onDisconnected = _onDisconnected;
       _client.onConnected = _onConnected;
-      // Note: onSubscribed and onUnsubscribed callbacks removed due to API changes
 
       // Set up SSL context
       _client.secure = true;
@@ -221,7 +220,6 @@ class MqttService extends GetxService {
       _heartbeatTimer?.cancel();
 
       if (isConnected) {
-        // Publish offline status before disconnecting
         _publishOfflineStatus();
         _client.disconnect();
       }
@@ -281,46 +279,39 @@ class MqttService extends GetxService {
     _scheduleReconnect();
   }
 
-  void _onSubscribed(String topic) {
-    _logger.d('Subscribed to: $topic');
-    if (!subscribedTopics.contains(topic)) {
-      subscribedTopics.add(topic);
-    }
-  }
-
-  void _onUnsubscribed(String topic) {
-    _logger.d('Unsubscribed from: $topic');
-    subscribedTopics.remove(topic);
-  }
-
   void _setupMessageListener() {
-    _client.updates!.listen((List<MqttReceivedMessage<MqttMessage?>> messages) {
+    // Fixed type handling for MQTT messages
+    _client.updates?.listen((List<MqttReceivedMessage<MqttMessage>> messages) {
       for (final message in messages) {
-        final recMessage = message.payload as MqttPublishMessage;
-        final topic = message.topic;
-        final payload = utf8.decode(recMessage.payload.message);
+        try {
+          final recMessage = message.payload as MqttPublishMessage;
+          final topic = message.topic;
+          final payload = utf8.decode(recMessage.payload.message);
 
-        final smartHomeMqttMessage = SmartHomeMqttMessage(
-          topic: topic,
-          payload: payload,
-          timestamp: DateTime.now(),
-        );
+          final smartHomeMqttMessage = SmartHomeMqttMessage(
+            topic: topic,
+            payload: payload,
+            timestamp: DateTime.now(),
+          );
 
-        // Add to recent messages (keep only last 100)
-        recentMessages.insert(0, smartHomeMqttMessage);
-        if (recentMessages.length > 100) {
-          recentMessages.removeLast();
+          // Add to recent messages (keep only last 100)
+          recentMessages.insert(0, smartHomeMqttMessage);
+          if (recentMessages.length > 100) {
+            recentMessages.removeLast();
+          }
+
+          // Emit to stream
+          _messageStream.add(smartHomeMqttMessage);
+
+          // Call specific handlers
+          _handleMessage(topic, payload);
+
+          _logger.d(
+            'Received message on $topic: ${payload.length > 100 ? '${payload.substring(0, 100)}...' : payload}',
+          );
+        } catch (e) {
+          _logger.e('Error processing MQTT message: $e');
         }
-
-        // Emit to stream
-        _messageStream.add(smartHomeMqttMessage);
-
-        // Call specific handlers
-        _handleMessage(topic, payload);
-
-        _logger.d(
-          'Received message on $topic: ${payload.length > 100 ? '${payload.substring(0, 100)}...' : payload}',
-        );
       }
     });
   }
@@ -431,8 +422,7 @@ class MqttService extends GetxService {
 
     try {
       _client.subscribe(topic, qos);
-      // Manually track subscriptions since callback was removed
-      _onSubscribed(topic);
+      subscribedTopics.add(topic);
       _logger.i('Subscribed to: $topic');
       return true;
     } catch (e) {
@@ -449,8 +439,7 @@ class MqttService extends GetxService {
 
     try {
       _client.unsubscribe(topic);
-      // Manually track unsubscriptions since callback was removed
-      _onUnsubscribed(topic);
+      subscribedTopics.remove(topic);
       _logger.i('Unsubscribed from: $topic');
       return true;
     } catch (e) {
@@ -609,7 +598,6 @@ class MqttService extends GetxService {
       return await connect();
     }
 
-    // Test by publishing a heartbeat
     return await publishJson('test/connection', {
       'test': true,
       'timestamp': DateTime.now().toIso8601String(),

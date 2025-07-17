@@ -47,23 +47,19 @@ void main() async {
     await SupabaseConfig.initialize();
     logger.i('✅ Supabase initialized successfully');
 
-    // Register services
+    // Register services FIRST
     logger.i('🔧 Registering services...');
     Get.put(SupabaseService(), permanent: true);
     Get.put(MqttService(), permanent: true);
     logger.i('✅ Services registered');
 
-    // Register controllers
+    // Register controllers in the correct order
     logger.i('🎮 Registering controllers...');
     Get.put(AuthController(), permanent: true);
     Get.put(DeviceController(), permanent: true);
     Get.put(TimerController(), permanent: true);
     Get.put(SceneController(), permanent: true);
     Get.put(IRHubController(), permanent: true);
-
-    // Feature controllers
-    Get.put(AuthPageController());
-    Get.put(DashboardController());
     logger.i('✅ Controllers registered');
 
     // Initialize MQTT connection
@@ -79,7 +75,8 @@ void main() async {
 
     logger.i('🎉 App initialization completed successfully!');
   } catch (error, stackTrace) {
-    logger.e(stackTrace);
+    logger.e('❌ App initialization failed: $error');
+    logger.e('Stack trace: $stackTrace');
 
     // Still run the app but show error state
     runApp(ErrorApp(error: error.toString()));
@@ -135,7 +132,8 @@ class SmartHomeApp extends StatelessWidget {
 class InitialBinding extends Bindings {
   @override
   void dependencies() {
-    // Controllers that need to be available globally
+    // Lazy load feature controllers
+    Get.lazyPut(() => AuthPageController());
     Get.lazyPut(() => DashboardController());
   }
 }
@@ -181,7 +179,7 @@ class ErrorApp extends StatelessWidget {
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: Colors.red.shade300),
                   ),
-                  child: Text(
+                  child: SelectableText(
                     error,
                     style: TextStyle(
                       fontSize: 12,

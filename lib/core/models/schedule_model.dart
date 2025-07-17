@@ -1,6 +1,8 @@
 // lib/core/models/schedule_model.dart
+import 'dart:convert';
 import 'package:equatable/equatable.dart';
 import 'package:get/get.dart';
+import 'package:flutter/material.dart';
 
 enum ScheduleStatus { active, inactive, expired, error }
 
@@ -23,7 +25,9 @@ enum WeekDay {
   }
 
   static List<WeekDay> fromIntList(List<int> days) {
-    return days.map((day) => WeekDay.values.firstWhere((d) => d.value == day)).toList();
+    return days
+        .map((day) => WeekDay.values.firstWhere((d) => d.value == day))
+        .toList();
   }
 
   static List<int> toIntList(List<WeekDay> days) {
@@ -32,13 +36,10 @@ enum WeekDay {
 }
 
 class ScheduleAction extends Equatable {
-  final String type; // 'turn_on', 'turn_off', 'set_brightness', 'set_color', 'toggle'
+  final String type;
   final Map<String, dynamic> parameters;
 
-  const ScheduleAction({
-    required this.type,
-    this.parameters = const {},
-  });
+  const ScheduleAction({required this.type, this.parameters = const {}});
 
   factory ScheduleAction.fromJson(Map<String, dynamic> json) {
     return ScheduleAction(
@@ -48,10 +49,7 @@ class ScheduleAction extends Equatable {
   }
 
   Map<String, dynamic> toJson() {
-    return {
-      'type': type,
-      'parameters': parameters,
-    };
+    return {'type': type, 'parameters': parameters};
   }
 
   String get displayText {
@@ -102,9 +100,9 @@ class ScheduleModel extends Equatable {
     bool? initialIsActive,
     DateTime? createdAt,
     DateTime? updatedAt,
-  })  : isActive = RxBool(initialIsActive ?? true),
-        createdAt = createdAt ?? DateTime.now(),
-        updatedAt = updatedAt ?? DateTime.now();
+  }) : isActive = RxBool(initialIsActive ?? true),
+       createdAt = createdAt ?? DateTime.now(),
+       updatedAt = updatedAt ?? DateTime.now();
 
   factory ScheduleModel.fromSupabase(Map<String, dynamic> data) {
     final daysData = (data['days'] as List<dynamic>?)?.cast<int>() ?? [];
@@ -133,7 +131,12 @@ class ScheduleModel extends Equatable {
 
     ScheduleAction? action;
     if (data['action'] != null) {
-      action = ScheduleAction.fromJson(data['action'] as Map<String, dynamic>);
+      final raw = data['action'];
+      if (raw is String) {
+        action = ScheduleAction.fromJson(jsonDecode(raw));
+      } else if (raw is Map<String, dynamic>) {
+        action = ScheduleAction.fromJson(raw);
+      }
     }
 
     return ScheduleModel(
@@ -158,7 +161,7 @@ class ScheduleModel extends Equatable {
       'days': WeekDay.toIntList(days),
       'on_time': onTime?.format24Hour(),
       'off_time': offTime?.format24Hour(),
-      'action': action?.toJson(),
+      'action': action != null ? jsonEncode(action!.toJson()) : null,
       'is_active': isActive.value,
       'updated_at': DateTime.now().toIso8601String(),
     };
@@ -180,7 +183,6 @@ class ScheduleModel extends Equatable {
     };
   }
 
-  // Helper getters
   bool get hasOnTime => onTime != null;
   bool get hasOffTime => offTime != null;
   bool get hasAction => action != null;
@@ -206,92 +208,62 @@ class ScheduleModel extends Equatable {
   }
 
   String get daysText {
-    if (days.length == 7) {
-      return 'Every day';
-    } else if (days.length == 5 && 
-               days.contains(WeekDay.monday) &&
-               days.contains(WeekDay.tuesday) &&
-               days.contains(WeekDay.wednesday) &&
-               days.contains(WeekDay.thursday) &&
-               days.contains(WeekDay.friday)) {
+    if (days.length == 7) return 'Every day';
+    if (days.length == 5 &&
+        days.contains(WeekDay.monday) &&
+        days.contains(WeekDay.tuesday) &&
+        days.contains(WeekDay.wednesday) &&
+        days.contains(WeekDay.thursday) &&
+        days.contains(WeekDay.friday)) {
       return 'Weekdays';
-    } else if (days.length == 2 &&
-               days.contains(WeekDay.saturday) &&
-               days.contains(WeekDay.sunday)) {
-      return 'Weekends';
-    } else {
-      return days.map((day) => day.shortName).join(', ');
     }
+    if (days.length == 2 &&
+        days.contains(WeekDay.saturday) &&
+        days.contains(WeekDay.sunday)) {
+      return 'Weekends';
+    }
+    return days.map((day) => day.shortName).join(', ');
   }
 
   String get timeText {
     final parts = <String>[];
-    
-    if (hasOnTime) {
-      parts.add('On at ${onTime!.format12Hour()}');
-    }
-    
-    if (hasOffTime) {
-      parts.add('Off at ${offTime!.format12Hour()}');
-    }
-    
-    if (hasAction) {
-      parts.add(action!.displayText);
-    }
-    
+    if (hasOnTime) parts.add('On at ${onTime!.format12Hour()}');
+    if (hasOffTime) parts.add('Off at ${offTime!.format12Hour()}');
+    if (hasAction) parts.add(action!.displayText);
     return parts.join(', ');
   }
 
-  String get scheduleDescription {
-    return '$daysText - $timeText';
-  }
+  String get scheduleDescription => '$daysText - $timeText';
 
-  // Check if schedule should run today
-  bool get runsToday {
-    final today = WeekDay.fromDateTime(DateTime.now());
-    return days.contains(today);
-  }
+  bool get runsToday => days.contains(WeekDay.fromDateTime(DateTime.now()));
 
-  // Check if schedule should run on specific day
   bool runsOnDay(DateTime date) {
     final day = WeekDay.fromDateTime(date);
     return days.contains(day);
   }
 
-  // Get next execution time
   DateTime? get nextExecution {
     if (!isActive.value || days.isEmpty) return null;
 
     final now = DateTime.now();
     final today = WeekDay.fromDateTime(now);
-    
-    // Check times for execution today or in the future
     final possibleTimes = <DateTime>[];
-    
-    if (hasOnTime) {
-      possibleTimes.add(_getNextDateTime(onTime!, today, now));
-    }
-    
-    if (hasOffTime) {
-      possibleTimes.add(_getNextDateTime(offTime!, today, now));
-    }
-    
+
+    if (hasOnTime) possibleTimes.add(_getNextDateTime(onTime!, today, now));
+    if (hasOffTime) possibleTimes.add(_getNextDateTime(offTime!, today, now));
     if (hasAction) {
-      // For custom actions, use onTime if available, otherwise assume morning
       final actionTime = onTime ?? const TimeOfDay(hour: 8, minute: 0);
       possibleTimes.add(_getNextDateTime(actionTime, today, now));
     }
-    
-    possibleTimes.removeWhere((time) => time.isBefore(now));
-    
+
+    possibleTimes.removeWhere((t) => t.isBefore(now));
     if (possibleTimes.isEmpty) return null;
-    
+
     possibleTimes.sort();
     return possibleTimes.first;
   }
 
   DateTime _getNextDateTime(TimeOfDay timeOfDay, WeekDay today, DateTime now) {
-    // Check if time can run today
     if (days.contains(today)) {
       final todayTime = DateTime(
         now.year,
@@ -300,17 +272,12 @@ class ScheduleModel extends Equatable {
         timeOfDay.hour,
         timeOfDay.minute,
       );
-      
-      if (todayTime.isAfter(now)) {
-        return todayTime;
-      }
+      if (todayTime.isAfter(now)) return todayTime;
     }
-    
-    // Find next day this schedule runs
+
     for (int i = 1; i <= 7; i++) {
       final futureDate = now.add(Duration(days: i));
       final futureDay = WeekDay.fromDateTime(futureDate);
-      
       if (days.contains(futureDay)) {
         return DateTime(
           futureDate.year,
@@ -321,26 +288,22 @@ class ScheduleModel extends Equatable {
         );
       }
     }
-    
-    return now.add(const Duration(days: 7)); // Fallback
+
+    return now.add(const Duration(days: 7));
   }
 
-  // Time until next execution
   Duration? get timeUntilNextExecution {
     final next = nextExecution;
     if (next == null) return null;
-    
-    final now = DateTime.now();
-    return next.difference(now);
+    return next.difference(DateTime.now());
   }
 
   String get nextExecutionText {
     final next = nextExecution;
     if (next == null) return 'Not scheduled';
-    
-    final now = DateTime.now();
-    final difference = next.difference(now);
-    
+
+    final difference = next.difference(DateTime.now());
+
     if (difference.inDays > 0) {
       return 'In ${difference.inDays} day${difference.inDays > 1 ? 's' : ''}';
     } else if (difference.inHours > 0) {
@@ -352,35 +315,26 @@ class ScheduleModel extends Equatable {
     }
   }
 
-  // Validation
   List<String> get validationErrors {
     final errors = <String>[];
-    
-    if (name.isEmpty) {
-      errors.add('Schedule name cannot be empty');
-    }
-    
-    if (days.isEmpty) {
-      errors.add('Must select at least one day');
-    }
-    
+
+    if (name.isEmpty) errors.add('Schedule name cannot be empty');
+    if (days.isEmpty) errors.add('Must select at least one day');
     if (!hasOnTime && !hasOffTime && !hasAction) {
       errors.add('Must specify at least one time or action');
     }
-    
+
     if (hasOnTime && hasOffTime) {
       final onMinutes = onTime!.hour * 60 + onTime!.minute;
       final offMinutes = offTime!.hour * 60 + offTime!.minute;
-      
       if (onMinutes >= offMinutes) {
         errors.add('Off time must be after on time');
       }
     }
-    
+
     return errors;
   }
 
-  // Copy with method
   ScheduleModel copyWith({
     String? id,
     String? deviceId,
@@ -405,149 +359,37 @@ class ScheduleModel extends Equatable {
       action: action ?? this.action,
       initialIsActive: isActive ?? this.isActive.value,
       createdAt: createdAt ?? this.createdAt,
-      updatedAt: updatedAt ?? DateTime.now(),
+      updatedAt: updatedAt ?? this.updatedAt,
     );
   }
 
   @override
   List<Object?> get props => [
-        id,
-        deviceId,
-        deviceName,
-        name,
-        days,
-        onTime,
-        offTime,
-        action,
-        isActive.value,
-        createdAt,
-        updatedAt,
-      ];
-
-  @override
-  String toString() {
-    return 'ScheduleModel(id: $id, name: $name, days: $daysText)';
-  }
+    id,
+    deviceId,
+    deviceName,
+    name,
+    days,
+    onTime,
+    offTime,
+    action,
+    isActive.value,
+    createdAt,
+    updatedAt,
+  ];
 }
 
-// Extension for TimeOfDay formatting
-extension TimeOfDayExtension on TimeOfDay {
+// Extensions for time formatting
+extension TimeOfDayExtensions on TimeOfDay {
   String format24Hour() {
-    return '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
+    final hourStr = hour.toString().padLeft(2, '0');
+    final minuteStr = minute.toString().padLeft(2, '0');
+    return '$hourStr:$minuteStr';
   }
 
   String format12Hour() {
-    final isPM = hour >= 12;
-    final displayHour = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
-    final period = isPM ? 'PM' : 'AM';
-    return '${displayHour.toString()}:${minute.toString().padLeft(2, '0')} $period';
+    final hour12 = hourOfPeriod == 0 ? 12 : hourOfPeriod;
+    final periodStr = period == DayPeriod.am ? 'AM' : 'PM';
+    return '$hour12:${minute.toString().padLeft(2, '0')} $periodStr';
   }
-
-  int get totalMinutes => hour * 60 + minute;
-
-  bool isBefore(TimeOfDay other) => totalMinutes < other.totalMinutes;
-  bool isAfter(TimeOfDay other) => totalMinutes > other.totalMinutes;
-}
-
-// Predefined schedule templates
-class ScheduleTemplate {
-  final String name;
-  final String description;
-  final List<WeekDay> days;
-  final TimeOfDay? onTime;
-  final TimeOfDay? offTime;
-  final ScheduleAction? action;
-
-  const ScheduleTemplate({
-    required this.name,
-    required this.description,
-    required this.days,
-    this.onTime,
-    this.offTime,
-    this.action,
-  });
-
-  ScheduleModel toScheduleModel({
-    required String id,
-    required String deviceId,
-    String? deviceName,
-    DateTime? createdAt,
-    DateTime? updatedAt,
-  }) {
-    return ScheduleModel(
-      id: id,
-      deviceId: deviceId,
-      deviceName: deviceName ?? '',
-      name: name,
-      days: days,
-      onTime: onTime,
-      offTime: offTime,
-      action: action,
-      createdAt: createdAt ?? DateTime.now(),
-      updatedAt: updatedAt ?? DateTime.now(),
-    );
-  }
-}
-
-class ScheduleTemplates {
-  static const List<ScheduleTemplate> templates = [
-    ScheduleTemplate(
-      name: 'Weekday Morning',
-      description: 'Turn on during weekday mornings',
-      days: [
-        WeekDay.monday,
-        WeekDay.tuesday,
-        WeekDay.wednesday,
-        WeekDay.thursday,
-        WeekDay.friday,
-      ],
-      onTime: TimeOfDay(hour: 7, minute: 0),
-      offTime: TimeOfDay(hour: 9, minute: 0),
-    ),
-    ScheduleTemplate(
-      name: 'Evening Lights',
-      description: 'Turn on lights in the evening',
-      days: WeekDay.values,
-      onTime: TimeOfDay(hour: 18, minute: 0),
-      offTime: TimeOfDay(hour: 23, minute: 0),
-    ),
-    ScheduleTemplate(
-      name: 'Weekend Sleep-in',
-      description: 'Later schedule for weekends',
-      days: [WeekDay.saturday, WeekDay.sunday],
-      onTime: TimeOfDay(hour: 9, minute: 0),
-      offTime: TimeOfDay(hour: 12, minute: 0),
-    ),
-    ScheduleTemplate(
-      name: 'Security Lights',
-      description: 'Nighttime security lighting',
-      days: WeekDay.values,
-      onTime: TimeOfDay(hour: 22, minute: 0),
-      offTime: TimeOfDay(hour: 6, minute: 0),
-    ),
-    ScheduleTemplate(
-      name: 'Work Hours',
-      description: 'Active during work hours',
-      days: [
-        WeekDay.monday,
-        WeekDay.tuesday,
-        WeekDay.wednesday,
-        WeekDay.thursday,
-        WeekDay.friday,
-      ],
-      onTime: TimeOfDay(hour: 9, minute: 0),
-      offTime: TimeOfDay(hour: 17, minute: 0),
-    ),
-  ];
-
-  static ScheduleTemplate? getTemplate(String name) {
-    try {
-      return templates.firstWhere((template) => template.name == name);
-    } catch (e) {
-      return null;
-    }
-  }
-
-  static List<String> get availableTemplateNames =>
-      templates.map((t) => t.name).toList();
 }

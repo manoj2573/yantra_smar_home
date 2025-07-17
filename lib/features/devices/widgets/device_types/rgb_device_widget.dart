@@ -1,0 +1,349 @@
+// lib/features/devices/widgets/device_types/rgb_device_widget.dart
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import '../../../../app/theme/app_theme.dart';
+import '../../../../core/models/device_model.dart';
+import '../../../../core/controllers/device_controller.dart';
+
+class RgbDeviceWidget extends StatelessWidget {
+  final DeviceModel device;
+
+  const RgbDeviceWidget({super.key, required this.device});
+
+  @override
+  Widget build(BuildContext context) {
+    final DeviceController controller = DeviceController.to;
+
+    return Column(
+      children: [
+        // Color Display
+        Obx(
+          () => Container(
+            width: 200,
+            height: 200,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                colors:
+                    device.state.value
+                        ? [
+                          _hexToColor(device.color.value),
+                          _hexToColor(device.color.value).withOpacity(0.3),
+                        ]
+                        : [
+                          Colors.grey.withOpacity(0.6),
+                          Colors.grey.withOpacity(0.1),
+                        ],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color:
+                      device.state.value
+                          ? _hexToColor(device.color.value).withOpacity(0.4)
+                          : Colors.grey.withOpacity(0.2),
+                  blurRadius: 20,
+                  spreadRadius: 5,
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.color_lens,
+                  size: 60,
+                  color: device.state.value ? Colors.white : Colors.grey[400],
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    device.color.value.toUpperCase(),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 32),
+
+        // Brightness Slider
+        if (device.supportsSlider) ...[
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Brightness',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                Obx(
+                  () => Slider(
+                    value: device.sliderValue?.value ?? 100,
+                    min: 0,
+                    max: 100,
+                    divisions: 20,
+                    onChanged:
+                        device.isOnline.value
+                            ? (value) =>
+                                controller.setDeviceSliderValue(device, value)
+                            : null,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+        ],
+
+        // Color Presets
+        Text(
+          'Color Presets',
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 16),
+
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children:
+              _colorPresets
+                  .map(
+                    (preset) => _buildColorPreset(
+                      preset['color'] as Color,
+                      preset['name'] as String,
+                      controller,
+                    ),
+                  )
+                  .toList(),
+        ),
+
+        const SizedBox(height: 24),
+
+        // Custom Color Picker Button
+        ElevatedButton.icon(
+          onPressed:
+              device.isOnline.value
+                  ? () => _showColorPicker(context, controller)
+                  : null,
+          icon: const Icon(Icons.palette),
+          label: const Text('Custom Color'),
+          style: ElevatedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // On/Off Toggle
+        Row(
+          children: [
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed:
+                    device.isOnline.value
+                        ? () => controller.toggleDeviceState(device)
+                        : null,
+                icon: Icon(
+                  device.state.value
+                      ? Icons.lightbulb
+                      : Icons.lightbulb_outline,
+                ),
+                label: Text(device.state.value ? 'Turn Off' : 'Turn On'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor:
+                      device.state.value
+                          ? Colors.orange
+                          : AppTheme.colors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildColorPreset(
+    Color color,
+    String name,
+    DeviceController controller,
+  ) {
+    final isSelected =
+        _colorToHex(color).toLowerCase() == device.color.value.toLowerCase();
+
+    return GestureDetector(
+      onTap:
+          device.isOnline.value
+              ? () => controller.setDeviceColor(device, _colorToHex(color))
+              : null,
+      child: Container(
+        width: 60,
+        height: 60,
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: isSelected ? Colors.white : Colors.grey.withOpacity(0.3),
+            width: isSelected ? 3 : 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.3),
+              blurRadius: 8,
+              spreadRadius: 1,
+            ),
+          ],
+        ),
+        child:
+            isSelected
+                ? const Icon(Icons.check, color: Colors.white, size: 24)
+                : null,
+      ),
+    );
+  }
+
+  void _showColorPicker(BuildContext context, DeviceController controller) {
+    Color selectedColor = _hexToColor(device.color.value);
+
+    Get.dialog(
+      AlertDialog(
+        title: const Text('Choose Color'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Simple color grid
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 6,
+                  crossAxisSpacing: 8,
+                  mainAxisSpacing: 8,
+                ),
+                itemCount: _extendedColors.length,
+                itemBuilder: (context, index) {
+                  final color = _extendedColors[index];
+                  return GestureDetector(
+                    onTap: () => selectedColor = color,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: color,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.grey.withOpacity(0.3)),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Get.back(), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () {
+              controller.setDeviceColor(device, _colorToHex(selectedColor));
+              Get.back();
+            },
+            child: const Text('Apply'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _hexToColor(String hex) {
+    hex = hex.replaceAll('#', '');
+    if (hex.length == 6) {
+      hex = 'FF$hex'; // Add alpha channel
+    }
+    return Color(int.parse(hex, radix: 16));
+  }
+
+  String _colorToHex(Color color) {
+    return '#${color.value.toRadixString(16).substring(2).toUpperCase()}';
+  }
+
+  static final List<Map<String, dynamic>> _colorPresets = [
+    {'color': Colors.red, 'name': 'Red'},
+    {'color': Colors.green, 'name': 'Green'},
+    {'color': Colors.blue, 'name': 'Blue'},
+    {'color': Colors.yellow, 'name': 'Yellow'},
+    {'color': Colors.purple, 'name': 'Purple'},
+    {'color': Colors.orange, 'name': 'Orange'},
+    {'color': Colors.pink, 'name': 'Pink'},
+    {'color': Colors.cyan, 'name': 'Cyan'},
+  ];
+
+  static final List<Color> _extendedColors = [
+    Colors.red.shade300,
+    Colors.red.shade500,
+    Colors.red.shade700,
+    Colors.pink.shade300,
+    Colors.pink.shade500,
+    Colors.pink.shade700,
+    Colors.purple.shade300,
+    Colors.purple.shade500,
+    Colors.purple.shade700,
+    Colors.deepPurple.shade300,
+    Colors.deepPurple.shade500,
+    Colors.deepPurple.shade700,
+    Colors.indigo.shade300,
+    Colors.indigo.shade500,
+    Colors.indigo.shade700,
+    Colors.blue.shade300,
+    Colors.blue.shade500,
+    Colors.blue.shade700,
+    Colors.lightBlue.shade300,
+    Colors.lightBlue.shade500,
+    Colors.lightBlue.shade700,
+    Colors.cyan.shade300,
+    Colors.cyan.shade500,
+    Colors.cyan.shade700,
+    Colors.teal.shade300,
+    Colors.teal.shade500,
+    Colors.teal.shade700,
+    Colors.green.shade300,
+    Colors.green.shade500,
+    Colors.green.shade700,
+    Colors.lightGreen.shade300,
+    Colors.lightGreen.shade500,
+    Colors.lightGreen.shade700,
+    Colors.lime.shade300,
+    Colors.lime.shade500,
+    Colors.lime.shade700,
+    Colors.yellow.shade300,
+    Colors.yellow.shade500,
+    Colors.yellow.shade700,
+    Colors.amber.shade300,
+    Colors.amber.shade500,
+    Colors.amber.shade700,
+    Colors.orange.shade300,
+    Colors.orange.shade500,
+    Colors.orange.shade700,
+  ];
+}

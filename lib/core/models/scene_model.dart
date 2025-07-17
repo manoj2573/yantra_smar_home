@@ -30,12 +30,15 @@ class SceneDeviceAction extends Equatable {
     return SceneDeviceAction(
       deviceId: json['device_id'] as String,
       deviceName: json['device_name'] as String? ?? 'Unknown Device',
-      deviceType: DeviceType.fromString(json['device_type'] as String? ?? 'On/Off'),
+      deviceType: DeviceType.fromString(
+        json['device_type'] as String? ?? 'On/Off',
+      ),
       state: json['state'] as bool,
       sliderValue: (json['slider_value'] as num?)?.toDouble(),
       color: json['color'] as String?,
       delaySeconds: json['delay_seconds'] as int? ?? 0,
-      customParameters: (json['custom_parameters'] as Map<String, dynamic>?) ?? {},
+      customParameters:
+          (json['custom_parameters'] as Map<String, dynamic>?) ?? {},
     );
   }
 
@@ -70,15 +73,12 @@ class SceneDeviceAction extends Equatable {
       payload['color'] = color!;
     }
 
-    // Add custom parameters
-    payload.addAll(customParameters);
-
     return payload;
   }
 
   String get actionDescription {
     final List<String> parts = [];
-    
+
     if (state) {
       parts.add('Turn ON');
     } else {
@@ -124,15 +124,15 @@ class SceneDeviceAction extends Equatable {
 
   @override
   List<Object?> get props => [
-        deviceId,
-        deviceName,
-        deviceType,
-        state,
-        sliderValue,
-        color,
-        delaySeconds,
-        customParameters,
-      ];
+    deviceId,
+    deviceName,
+    deviceType,
+    state,
+    sliderValue,
+    color,
+    delaySeconds,
+    customParameters,
+  ];
 }
 
 class SceneModel extends Equatable {
@@ -157,21 +157,22 @@ class SceneModel extends Equatable {
     bool? initialIsActive,
     DateTime? createdAt,
     DateTime? updatedAt,
-  })  : iconPath = iconPath ?? _getDefaultIconPath(name),
-        deviceActions = deviceActions ?? [],
-        isActive = RxBool(initialIsActive ?? false),
-        status = RxString('inactive'),
-        executionProgress = RxDouble(0.0),
-        currentAction = RxString(''),
-        createdAt = createdAt ?? DateTime.now(),
-        updatedAt = updatedAt ?? DateTime.now();
+  }) : iconPath = iconPath ?? _getDefaultIconPath(name),
+       deviceActions = deviceActions ?? [],
+       isActive = RxBool(initialIsActive ?? false),
+       status = RxString('inactive'),
+       executionProgress = RxDouble(0.0),
+       currentAction = RxString(''),
+       createdAt = createdAt ?? DateTime.now(),
+       updatedAt = updatedAt ?? DateTime.now();
 
   factory SceneModel.fromSupabase(Map<String, dynamic> data) {
     final devicesData = data['devices'] as List<dynamic>? ?? [];
-    final deviceActions = devicesData
-        .cast<Map<String, dynamic>>()
-        .map((deviceData) => SceneDeviceAction.fromJson(deviceData))
-        .toList();
+    final deviceActions =
+        devicesData
+            .cast<Map<String, dynamic>>()
+            .map((deviceData) => SceneDeviceAction.fromJson(deviceData))
+            .toList();
 
     return SceneModel(
       id: data['id'] as String,
@@ -251,58 +252,43 @@ class SceneModel extends Equatable {
 
   // Scene execution methods
   SceneModel activate() {
-    return copyWith(
-      isActive: true,
-      updatedAt: DateTime.now(),
-    );
+    return copyWith(isActive: true, updatedAt: DateTime.now());
   }
 
   SceneModel deactivate() {
-    return copyWith(
-      isActive: false,
-      updatedAt: DateTime.now(),
-    );
+    return copyWith(isActive: false, updatedAt: DateTime.now());
   }
 
   // Add device action
   SceneModel addDeviceAction(SceneDeviceAction action) {
     final updatedActions = List<SceneDeviceAction>.from(deviceActions);
-    
+
     // Remove existing action for the same device if any
     updatedActions.removeWhere((a) => a.deviceId == action.deviceId);
     updatedActions.add(action);
-    
-    return copyWith(
-      deviceActions: updatedActions,
-      updatedAt: DateTime.now(),
-    );
+
+    return copyWith(deviceActions: updatedActions, updatedAt: DateTime.now());
   }
 
   // Remove device action
   SceneModel removeDeviceAction(String deviceId) {
-    final updatedActions = deviceActions
-        .where((action) => action.deviceId != deviceId)
-        .toList();
-    
-    return copyWith(
-      deviceActions: updatedActions,
-      updatedAt: DateTime.now(),
-    );
+    final updatedActions =
+        deviceActions.where((action) => action.deviceId != deviceId).toList();
+
+    return copyWith(deviceActions: updatedActions, updatedAt: DateTime.now());
   }
 
   // Update device action
   SceneModel updateDeviceAction(SceneDeviceAction updatedAction) {
-    final updatedActions = deviceActions.map((action) {
-      if (action.deviceId == updatedAction.deviceId) {
-        return updatedAction;
-      }
-      return action;
-    }).toList();
-    
-    return copyWith(
-      deviceActions: updatedActions,
-      updatedAt: DateTime.now(),
-    );
+    final updatedActions =
+        deviceActions.map((action) {
+          if (action.deviceId == updatedAction.deviceId) {
+            return updatedAction;
+          }
+          return action;
+        }).toList();
+
+    return copyWith(deviceActions: updatedActions, updatedAt: DateTime.now());
   }
 
   // Check if device is in scene
@@ -324,22 +310,22 @@ class SceneModel extends Equatable {
 
   List<String> get validationErrors {
     final errors = <String>[];
-    
+
     if (name.isEmpty) {
       errors.add('Scene name cannot be empty');
     }
-    
+
     if (deviceActions.isEmpty) {
       errors.add('Scene must have at least one device action');
     }
-    
+
     // Check for duplicate device IDs
     final deviceIds = deviceActions.map((a) => a.deviceId).toList();
     final uniqueDeviceIds = deviceIds.toSet();
     if (deviceIds.length != uniqueDeviceIds.length) {
       errors.add('Scene contains duplicate device actions');
     }
-    
+
     return errors;
   }
 
@@ -366,14 +352,14 @@ class SceneModel extends Equatable {
 
   @override
   List<Object?> get props => [
-        id,
-        name,
-        iconPath,
-        deviceActions,
-        isActive.value,
-        createdAt,
-        updatedAt,
-      ];
+    id,
+    name,
+    iconPath,
+    deviceActions,
+    isActive.value,
+    createdAt,
+    updatedAt,
+  ];
 
   @override
   String toString() {
@@ -382,10 +368,11 @@ class SceneModel extends Equatable {
 
   static String _getDefaultIconPath(String sceneName) {
     final lowerName = sceneName.toLowerCase();
-    
+
     if (lowerName.contains('movie') || lowerName.contains('cinema')) {
       return 'assets/icons/scenes/movie.png';
-    } else if (lowerName.contains('party') || lowerName.contains('celebration')) {
+    } else if (lowerName.contains('party') ||
+        lowerName.contains('celebration')) {
       return 'assets/icons/scenes/party.png';
     } else if (lowerName.contains('sleep') || lowerName.contains('night')) {
       return 'assets/icons/scenes/sleep.png';
